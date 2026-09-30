@@ -32,6 +32,14 @@ class Pillar(Base):
     thickness_m: Mapped[float] = mapped_column(Float, default=0.4)
     label: Mapped[str] = mapped_column(String(32), default="挡柱")
 
+class PowerPole(Base):
+    __tablename__ = "power_poles"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    segment_id: Mapped[int] = mapped_column(ForeignKey("segments.id"))
+    position_m: Mapped[float] = mapped_column(Float)
+    radius_m: Mapped[float] = mapped_column(Float)
+    label: Mapped[str] = mapped_column(String(32), default="供电桩")
+
 class AllocationRun(Base):
     __tablename__ = "allocation_runs"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

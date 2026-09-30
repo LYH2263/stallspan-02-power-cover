@@ -6,7 +6,7 @@ const route = useRoute()
 const title = computed(() => {
   const map: Record<string, string> = {
     '/days': '集日', '/segments': '街段', '/vendors': '摊主队列',
-    '/map': '街段分配带', '/rejected': '放不下', '/pillars': '挡柱',
+    '/map': '街段分配带', '/rejected': '放不下', '/pillars': '挡柱', '/power-poles': '供电桩',
   }
   return map[route.path] || 'StallSpan'
 })
@@ -20,6 +20,7 @@ const title = computed(() => {
         <RouterLink to="/segments">街段</RouterLink>
         <RouterLink to="/map">分配带</RouterLink>
         <RouterLink to="/pillars">挡柱</RouterLink>
+        <RouterLink to="/power-poles">供电桩</RouterLink>
         <RouterLink to="/rejected">放不下</RouterLink>
         <RouterLink to="/vendors">摊主</RouterLink>
       </nav>

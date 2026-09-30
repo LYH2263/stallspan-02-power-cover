@@ -7,6 +7,7 @@ const routes = [
   { path: '/map', name: 'Map', component: () => import('../views/Map.vue') },
   { path: '/rejected', name: 'Rejected', component: () => import('../views/Rejected.vue') },
   { path: '/pillars', name: 'Pillars', component: () => import('../views/Pillars.vue') },
+  { path: '/power-poles', name: 'PowerPoles', component: () => import('../views/PowerPoles.vue') },
   { path: '/', redirect: '/days' },
 ]
 

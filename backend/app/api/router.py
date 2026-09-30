@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api import allocate, days, pillars, segments, vendors
+from app.api import allocate, days, pillars, power_poles, segments, vendors
 api_router = APIRouter()
 
 @api_router.get("/health")
@@ -10,4 +10,5 @@ api_router.include_router(days.router)
 api_router.include_router(segments.router)
 api_router.include_router(vendors.router)
 api_router.include_router(pillars.router)
+api_router.include_router(power_poles.router)
 api_router.include_router(allocate.router)
