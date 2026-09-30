@@ -1,6 +1,17 @@
-"""1D First-Fit stall placement along a street segment; stalls cannot cross pillars."""
+"""1D First-Fit stall placement along a street segment.
+
+Stalls cannot cross pillars. When a segment has power outlets, a stall's
+closed interval [start_m, end_m] must be fully covered by at least one
+outlet's service interval [position_m - radius_m, position_m + radius_m];
+covering only the midpoint (one end outside) is rejected.
+"""
 from __future__ import annotations
 from dataclasses import asdict, dataclass
+
+EPS = 1e-9
+
+REASON_NO_SPACE = "无连续空档可放下且不跨越挡柱"
+REASON_NO_POWER = "供电不足：摊位起止区间未被任一供电桩的服务区间完全覆盖"
 
 @dataclass
 class Placement:
@@ -49,8 +60,42 @@ def free_spans_from_pillars(width_m: float, pillars: list[dict]) -> list[tuple[f
         spans.append((cursor, width_m))
     return [(round(a, 3), round(b, 3)) for a, b in spans if b - a > 1e-6]
 
-def allocate_first_fit(width_m: float, vendors: list[dict], pillars: list[dict]) -> AllocResult:
-    """vendors sorted by priority ascending then id; each needs stall_width_m contiguous in one free span (no pillar cross)."""
+def interval_covered(start_m: float, end_m: float, outlets: list[dict]) -> bool:
+    """True iff the closed interval [start_m, end_m] is fully contained in at
+    least one outlet service interval. Covering only the midpoint fails."""
+    for o in outlets:
+        serve_lo = o["position_m"] - o["radius_m"]
+        serve_hi = o["position_m"] + o["radius_m"]
+        if start_m + EPS >= serve_lo and end_m <= serve_hi + EPS:
+            return True
+    return False
+
+def _earliest_covered_start(cursor: float, span_end: float, need: float,
+                            outlets: list[dict]) -> float | None:
+    """Earliest start >= cursor within the span where [start, start+need] is
+    fully covered by a single outlet. None if no such position exists."""
+    best: float | None = None
+    latest_start = span_end - need
+    for o in outlets:
+        lo = max(cursor, o["position_m"] - o["radius_m"])
+        hi = min(latest_start, o["position_m"] + o["radius_m"] - need)
+        if lo <= hi + EPS:
+            if best is None or lo < best:
+                best = lo
+    return best
+
+def allocate_first_fit(width_m: float, vendors: list[dict], pillars: list[dict],
+                       outlets: list[dict] | None = None) -> AllocResult:
+    """vendors sorted by priority ascending then id.
+
+    Each stall needs stall_width_m contiguous metres inside one free span
+    (no pillar cross). When outlets are configured, the stall's closed
+    interval must additionally be fully covered by one outlet's service
+    interval. Rejection reasons are mutually exclusive: no contiguous space
+    (cross-pillar/insufficient gap) or insufficient power coverage.
+    With no outlets configured the segment behaves like the green-field case.
+    """
+    outlets = outlets or []
     spans = free_spans_from_pillars(width_m, pillars)
     # mutable remaining capacity per span
     remain = [[a, b] for a, b in spans]
@@ -59,18 +104,28 @@ def allocate_first_fit(width_m: float, vendors: list[dict], pillars: list[dict])
     rejected: list[Rejected] = []
     for v in ordered:
         need = float(v["stall_width_m"])
-        placed = False
-        for span in remain:
-            avail = span[1] - span[0]
-            if avail + 1e-9 >= need:
-                start = span[0]
-                end = start + need
-                placements.append(Placement(v["id"], v["name"], round(start, 3), round(end, 3), need))
-                span[0] = end
-                placed = True
+        start: float | None = None
+        span_idx = -1
+        for i, span in enumerate(remain):
+            if span[1] - span[0] + EPS < need:
+                continue
+            if not outlets:
+                start, span_idx = span[0], i
                 break
-        if not placed:
-            rejected.append(Rejected(v["id"], v["name"], need, "无连续空档可放下且不跨越挡柱"))
+            cand = _earliest_covered_start(span[0], span[1], need, outlets)
+            if cand is not None:
+                start, span_idx = cand, i
+                break
+        if start is None:
+            # Mutually exclusive reasons: if any span geometrically had room,
+            # the failure is coverage; otherwise it is space/pillar related.
+            has_space = any(span[1] - span[0] + EPS >= need for span in remain)
+            reason = REASON_NO_POWER if (has_space and outlets) else REASON_NO_SPACE
+            rejected.append(Rejected(v["id"], v["name"], need, reason))
+            continue
+        end = start + need
+        placements.append(Placement(v["id"], v["name"], round(start, 3), round(end, 3), need))
+        remain[span_idx][0] = end
     free = [(round(a, 3), round(b, 3)) for a, b in remain if b - a > 1e-6]
     return AllocResult(placements, rejected, free)
 
